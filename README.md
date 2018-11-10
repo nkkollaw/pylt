@@ -22,7 +22,25 @@ Then, we need to parse `xmodmap -pk` to find the correct keycodes for our specif
 xset r xxx
 ```
 
-### Detect long-press
+### Detect long presses
 
 This guy: https://unix.stackexchange.com/a/320474/262190 seems to be the only on the internet who knows what's going on with this. For now we can just use his script, and launch our program instead of the one he launches.
+
+For this we have pylt-long-pressed. You can find the source code in pylt-long-pressed.c, which you can compile with:
+
+```bash
+gcc pylt-long-pressed.c -o pylt-long-pressed
+```
+
+You need GCC to compile, as well as `evtest` installed. You can install `evtest` on Ubuntu with:
+
+```bash
+sudo apt install evtest
+```
+
+Run as sudo, with:
+
+```bash
+sudo ./pylt-long-pressed `ls -la /dev/input/by-id/* | grep kbd |  echo "/dev/input/""$(awk -F'/' '{print $NF}')"`
+```
 
