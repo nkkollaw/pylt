@@ -305,30 +305,10 @@ int onHold = 0;
 struct timeval t0;
 double elapsedTime;
 int hitMax = 0;
-/*
-  [1] Not add `export XAUTHORITY=/home/username/.Xauthority; ` here bcoz /run/user/1000/gdm/Xauthority can work in my case.
-  [2] Just change the su's username ("xiaobai" is my username) and user id (1000 is my user id), 
-  [3] Change DISPLAY if not :0
-  [4] You should manually do `echo "$DBUS_SESSION_BUS_ADDRESS"` to double check your value
-  [5] XDG_CURRENT_DESKTOP and GNOME_DESKTOP_SESSION_ID is to ensure konsole use gnome theme gui. Other KDE app like kdiff3 require GNOME_DESKTOP_SESSION_ID too.
-*/
-char *prefix = "su xiaobai -c \"(export 'XDG_CURRENT_DESKTOP=GNOME'; export 'GNOME_DESKTOP_SESSION_ID=this-is-deprecated'; export 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus'; export 'DISPLAY=:0'; ";
-char *postfix = " ) &\"";
 int currCode;
 
 void callSystem(char *cmd) {
-	//callSystem("su - xiaobai -c 'export DISPLAY=:0; gedit &'");
-	//system("su - xiaobai -c \"export DISPLAY=:0; "");"
-
-    //rf: http://stackoverflow.com/a/1383685/1074998
-    char * s = NULL;
-	//char * s = malloc(snprintf(NULL, 0, "%s %s %s", prefix, cmd, postfix) + 1);	
-    asprintf(&s, "%s %s %s", prefix, cmd, postfix);
-    //sprintf(&s, "%s %s %s", prefix, cmd, postfix);
-
-    //printf("Run command: %s\n", s);
-    system(s);
-    //free(s);
+	system(cmd);
 }
 
 void doModifier(struct input_event ev, int currCode) {
@@ -361,43 +341,34 @@ void doModifier(struct input_event ev, int currCode) {
 }
 
 
-void doAction(struct input_event ev, char * cmd1, char * cmd2, char * cmd3, char * cmd4) {
+void doAction(struct input_event ev, char *cmd, double popoverDelay) {
 	if (!onHold) {
 		onHold = 1;
 		t0 = ev.time;
 		hitMax = 0;
 	}
 
-	if (!hitMax) { //to avoid hitMax still do the time checking instruction, you can remove hitMax checking if you think it's overkill, but still hitMax itself is necessary to avoid every (max) 2 seconds will repeatly system();
+	if (!hitMax) { // to avoid hitMax still do the time checking instruction, you can remove hitMax checking if you think it's overkill, but still hitMax itself is necessary to avoid every (max) popoverDelay seconds will repeatly system();
 		elapsedTime = (ev.time.tv_sec - t0.tv_sec) + ((ev.time.tv_usec - t0.tv_usec)/1000000.0);
-		//printf("elapsedTime: %f\n", elapsedTime);
-		if (elapsedTime > 2) {
+		printf("\nElapsed time: %f", elapsedTime);
+
+		if (elapsedTime >= popoverDelay) {
 			hitMax = 1;
-			printf("perform max time action\n");
-			callSystem(cmd4);
+
+			printf("\nExec command!");
+
+			callSystem(cmd);
 		}
 	}
-	/*
-		if (ev.value == 2) {
-		printf("COME3 Event: time %ld.%06ld, type %d (%s), code %d (%s), value %d\n",
-		ev.time.tv_sec, ev.time.tv_usec, ev.type,
-		events[ev.type] ? events[ev.type] : "?",
-		ev.code,
-		names[ev.type] ? (names[ev.type][ev.code] ? names[ev.type][ev.code] : "?") : "?",
-		ev.value);	
 
-	} else 
-	*/
 	if (ev.value == 0)  {
-		//printf("reseted ...... %d\n", ev.value);
+		printf("\nReleased key before delay, reset... %d", ev.value);
+
 		onHold = 0;
+
 		if (!hitMax) {
-			if (elapsedTime > 1) { //just ensure lower than max 2 seconds
-				callSystem(cmd3);
-			} else if (elapsedTime > 0.5) { 
-				callSystem(cmd2);
-			} else if  ((elapsedTime > 0.2) && (cmd1 != NULL)) {
-				callSystem(cmd1);
+			if (elapsedTime >= popoverDelay) {
+				callSystem(cmd);
 			}
 		} else { //else's max system() already perform
 			hitMax = 0;
@@ -416,18 +387,28 @@ int main (int argc, char **argv)
 
 	char name[256] = "Unknown";
 	int abs[5];
-	if (argc < 2) {
-		printf("Usage: evtest /dev/input/eventX\n");
-		printf("Where X = input device number\n");
-		return 1;
-	}
-	if ((fd = open(argv[argc - 1], O_RDONLY)) < 0) {
-		perror("evtest");
+	if (argc <= 3) {
+		printf("\npylt-long-pressed REQUIRES 3 parameters: your keyboard as a device (ex. /dev/input/event6), a delay, and a command to execute");
+		printf("\nPlease try again\n");
+
 		return 1;
 	}
 
+	char *myDevice = argv[argc - 3];
+	double popoverDelay = atof(argv[argc - 2]);
+	char *myCmd = argv[argc - 1];
+
+
+	printf("\n\n%s", myDevice);
+
+	if ((fd = open(myDevice, O_RDONLY)) < 0) {
+		perror("Cannot work with input device");
+
+		return 1;
+	}
 	if (ioctl(fd, EVIOCGVERSION, &version)) {
 		perror("evtest: can't get version");
+
 		return 1;
 	}
 
@@ -444,19 +425,15 @@ int main (int argc, char **argv)
 			return 1;
 		}
 
-		//system("echo 'running' >/tmp/l_is_running 2>/tmp/l_isrunning_E &");
 		for (i = 0; i < rd / sizeof(struct input_event); i++) {
-
-			//system("date >/tmp/l_date 2>/tmp/l_dateE &");
-
-			
 			if (ev[i].type == EV_KEY) {
 				currCode = ev[i].code;
 				// printf("\nCurrent currCode is %d\n", currCode);
 				
-				if ( (currCode == 37) ) { // letter "k"
+				if ( (currCode == 37) ) { // letter "k", just for testing
 					doModifier(ev[i], currCode);
-					doAction(ev[i], NULL, NULL, NULL, "firefox");
+
+					doAction(ev[i], myCmd, popoverDelay);
 				}
 				
 			}

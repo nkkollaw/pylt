@@ -38,9 +38,9 @@ You need GCC to compile, as well as `evtest` installed. You can install `evtest`
 sudo apt install evtest
 ```
 
-Run as sudo, with:
+Run as sudo, with (change "firefox" into the command to execute, 0.75 into your desired delay):
 
 ```bash
-sudo ./pylt-long-pressed `ls -la /dev/input/by-id/* | grep kbd |  echo "/dev/input/""$(awk -F'/' '{print $NF}')"`
+sudo ./pylt-long-pressed `ls -la /dev/input/by-id/* | grep kbd | echo "/dev/input/""$(awk -F'/' '{print $NF}')"` "sudo -H -u $(whoami) firefox"
 ```
 
